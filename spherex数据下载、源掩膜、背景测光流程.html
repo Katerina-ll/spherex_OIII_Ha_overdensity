@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPHEREx D2/D3 End-to-End Master Workflow</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --ink: #1f2937;
+      --muted: #4b5563;
+      --line: #dbe2ea;
+      --accent: #1d4ed8;
+      --ok: #0f766e;
+      --warn: #b45309;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+    .wrap {
+      max-width: 1120px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    h1, h2, h3 {
+      margin: 0 0 10px;
+      line-height: 1.3;
+    }
+    h1 { font-size: 27px; }
+    h2 { font-size: 21px; }
+    h3 { font-size: 17px; }
+    p { margin: 8px 0; }
+    ul { margin: 8px 0 0 18px; }
+    li { margin: 4px 0; }
+    .muted { color: var(--muted); }
+    .tag {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      margin-right: 6px;
+      background: #f8fafc;
+    }
+    .toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .toc a:hover { text-decoration: underline; }
+    pre {
+      margin: 8px 0;
+      background: #0b1220;
+      color: #d7e2ff;
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid #1f2a44;
+      overflow-x: auto;
+      font-size: 13px;
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f1f5f9; }
+    .figure {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fcfdff;
+      padding: 8px;
+      margin-top: 10px;
+    }
+    .caption {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+  </style>
+  <script>
+    window.MathJax = {
+      tex: {inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$']]},
+      svg: {fontCache: 'global'}
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>SPHEREx D2/D3 总流程文档</h1>
+      <p class="muted">合并了区域下载、3x3中心像素WCS转换、SEP源掩膜、背景孔径流量提取与误差传播。</p>
+      <div>
+        <span class="tag">download_d3_region_formal.py</span>
+        <span class="tag">pixel_to_wcs_3x3_centers.py</span>
+        <span class="tag">replace_hdu_sep_mask.py</span>
+        <span class="tag">extract_d3_spectra_spxquery.py</span>
+      </div>
+    </div>
+
+    <div class="card toc">
+      <h2>目录</h2>
+      <ul>
+        <li><a href="#overview">1. 总体流程总览</a></li>
+        <li><a href="#download">2. 区域下载模块</a></li>
+        <li><a href="#wcs">3. 3x3中心像素WCS模块</a></li>
+        <li><a href="#mask">4. SEP源掩膜模块</a></li>
+        <li><a href="#extract">5. 背景孔径流量提取模块</a></li>
+        <li><a href="#formula">6. 核心公式汇总</a></li>
+        <li><a href="#commands">7. 推荐命令模板</a></li>
+        <li><a href="#outputs">8. 输出产物说明</a></li>
+      </ul>
+    </div>
+
+    <div class="card" id="overview">
+      <h2>1. 总体流程总览</h2>
+      <div class="figure">
+        <svg viewBox="0 0 1180 420" width="100%" role="img" aria-label="master workflow">
+          <defs>
+            <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L10,3 L0,6 z" fill="#334155"></path>
+            </marker>
+          </defs>
+
+          <rect x="20" y="40" width="210" height="86" rx="12" fill="#e8f0ff" stroke="#90a9da"/>
+          <text x="36" y="72" font-size="16" fill="#1e3a8a">天区参数</text>
+          <text x="36" y="96" font-size="13" fill="#334155">RA/Dec/radius/band</text>
+
+          <rect x="280" y="20" width="250" height="126" rx="12" fill="#e8fff6" stroke="#7abda8"/>
+          <text x="298" y="50" font-size="16" fill="#115e59">区域下载</text>
+          <text x="298" y="73" font-size="13" fill="#334155">TAP空间查询 + obs_id去重</text>
+          <text x="298" y="95" font-size="13" fill="#334155">parallel_download(max_workers)</text>
+          <text x="298" y="117" font-size="13" fill="#334155">输出 FITS + metadata</text>
+
+          <rect x="580" y="20" width="270" height="126" rx="12" fill="#fff7e8" stroke="#d5b57b"/>
+          <text x="598" y="50" font-size="16" fill="#92400e">3x3中心像素WCS</text>
+          <text x="598" y="73" font-size="13" fill="#334155">x=1+3k, y=1+3m</text>
+          <text x="598" y="95" font-size="13" fill="#334155">pixel_to_world_values</text>
+          <text x="598" y="117" font-size="13" fill="#334155">输出坐标CSV</text>
+
+          <rect x="900" y="20" width="250" height="126" rx="12" fill="#f3e8ff" stroke="#ba9ad8"/>
+          <text x="918" y="50" font-size="16" fill="#6b21a8">SEP源掩膜</text>
+          <text x="918" y="73" font-size="13" fill="#334155">sep.extract(segmap=True)</text>
+          <text x="918" y="95" font-size="13" fill="#334155">segmap&gt;0 -> NaN</text>
+          <text x="918" y="117" font-size="13" fill="#334155">输出掩膜后D2/D3 FITS</text>
+
+          <rect x="280" y="212" width="580" height="168" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+          <text x="300" y="244" font-size="16" fill="#0f172a">背景孔径流量提取</text>
+          <text x="300" y="268" font-size="13" fill="#334155">固定孔径（直径3 pix） + 有效像素筛选 + min_bg_pixels阈值</text>
+          <text x="300" y="292" font-size="13" fill="#334155">aperture_sum_flux_ujy（背景孔径总流量）</text>
+          <text x="300" y="316" font-size="13" fill="#334155">aperture_sum_flux_error_var_ujy（纯方差传播）</text>
+          <text x="300" y="340" font-size="13" fill="#334155">aperture_sum_flux_error_var_bgquad_ujy（方差+背景波动二次和）</text>
+          <text x="300" y="364" font-size="13" fill="#334155">aperture_sum_snr（背景孔径SNR）</text>
+
+          <line x1="230" y1="83" x2="280" y2="83" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="530" y1="83" x2="580" y2="83" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="850" y1="83" x2="900" y2="83" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+          <line x1="1025" y1="146" x2="740" y2="212" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>
+        </svg>
+      </div>
+      <p class="caption">图 1. 从数据获取到背景孔径流量产出的全链路。</p>
+    </div>
+
+    <div class="card" id="download">
+      <h2>2. 区域下载模块</h2>
+      <p>脚本 download_d3_region_formal.py 通过 TAP 服务在圆形天区内查询指定波段的观测，并并行下载 FITS。</p>
+      <p>核心空间条件：</p>
+      <p>$$\mathrm{INTERSECTS}(p.poly,\ \mathrm{CIRCLE}(\mathrm{ICRS},\alpha_0,\delta_0,r))=1$$</p>
+      <p>角距离形式等价写法：</p>
+      <p>$$\cos(\Delta\theta)=\sin\delta\sin\delta_0+\cos\delta\cos\delta_0\cos(\alpha-\alpha_0),\ \Delta\theta\le r$$</p>
+      <p>同时按 obs_id 去重，避免重复下载。</p>
+    </div>
+
+    <div class="card" id="wcs">
+      <h2>3. 3x3中心像素WCS模块</h2>
+      <p>脚本 pixel_to_wcs_3x3_centers.py 选取每个 3x3 block 的中心像素并转换为 WCS 坐标。</p>
+      <p>采样规则（0-based）：</p>
+      <p>$$x_k=1+3k,\quad y_m=1+3m$$</p>
+      <p>block 索引回写：</p>
+      <p>$$\mathrm{block\_ix}=\left\lfloor\frac{x-1}{3}\right\rfloor,\quad \mathrm{block\_iy}=\left\lfloor\frac{y-1}{3}\right\rfloor$$</p>
+      <p>坐标映射：</p>
+      <p>$$(\mathrm{ra\_deg},\mathrm{dec\_deg})=\mathrm{WCS}_{celestial}(x,y)$$</p>
+    </div>
+
+    <div class="card" id="mask">
+      <h2>4. SEP源掩膜模块</h2>
+      <p>脚本 replace_hdu_sep_mask.py 对 D2/D3 图像执行 SEP 探测并掩膜，源像元设为 NaN。</p>
+      <p>检测与掩膜逻辑：</p>
+      <ul>
+        <li>先用 sep.Background 获取背景模型</li>
+        <li>执行 sep.extract(..., segmentation_map=True)</li>
+        <li>使用 segmap > 0 的区域作为源掩膜</li>
+      </ul>
+      <p>阈值参数由 sigma 控制，常用 3。</p>
+    </div>
+
+    <div class="card" id="extract">
+      <h2>5. 背景孔径流量提取模块</h2>
+      <p>脚本 extract_d3_spectra_spxquery.py 在掩膜后图像上提取背景孔径流量，并同时输出两种误差。</p>
+
+      <h3>5.1 孔径流量</h3>
+      <p>$$\mathrm{aperture\_sum\_flux\_ujy}=\left(\sum_{i\in ap} I_i\right)A_{pix}$$</p>
+
+      <h3>5.2 纯方差传播误差</h3>
+      <p>$$\mathrm{aperture\_sum\_flux\_error\_var\_ujy}=\sqrt{\sum_{i\in ap}\mathrm{Var}_i}\,A_{pix}$$</p>
+
+      <h3>5.3 方差+背景波动二次和误差</h3>
+      <p>$$s_{ap}=\mathrm{std}(I_{ap}),\quad \sigma_{bg}=N_{ap}\,s_{ap}$$</p>
+      <p>$$\mathrm{aperture\_sum\_flux\_error\_var\_bgquad\_ujy}=\sqrt{\left(\sqrt{\sum\mathrm{Var}_i}\right)^2+\sigma_{bg}^2}\,A_{pix}$$</p>
+
+      <h3>5.4 背景孔径SNR</h3>
+      <p>$$\mathrm{aperture\_sum\_snr}=\frac{\mathrm{aperture\_sum\_flux\_ujy}}{\mathrm{aperture\_sum\_flux\_error\_var\_bgquad\_ujy}}$$</p>
+      <p>兼容列 aperture_sum_flux_error_ujy 当前等于 aperture_sum_flux_error_var_bgquad_ujy。</p>
+    </div>
+
+    <div class="card" id="formula">
+      <h2>6. 核心公式汇总</h2>
+      <table>
+        <thead>
+          <tr><th>模块</th><th>变量/关系</th><th>公式</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>空间查询</td>
+            <td>圆形天区选择</td>
+            <td>INTERSECTS(poly, CIRCLE(ICRS, alpha0, delta0, r)) = 1</td>
+          </tr>
+          <tr>
+            <td>3x3采样</td>
+            <td>中心像素</td>
+            <td>x = 1 + 3k, y = 1 + 3m</td>
+          </tr>
+          <tr>
+            <td>WCS转换</td>
+            <td>像素到天球</td>
+            <td>(ra, dec) = WCS_celestial(x, y)</td>
+          </tr>
+          <tr>
+            <td>背景流量</td>
+            <td>孔径求和</td>
+            <td>aperture_sum_flux_ujy = (sum I_i) * A_pix</td>
+          </tr>
+          <tr>
+            <td>误差A</td>
+            <td>纯方差传播</td>
+            <td>sqrt(sum Var_i) * A_pix</td>
+          </tr>
+          <tr>
+            <td>误差B</td>
+            <td>方差+背景波动二次和</td>
+            <td>sqrt((sqrt(sum Var_i))^2 + (N_ap * std(I_ap))^2) * A_pix</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" id="commands">
+      <h2>7. 推荐命令模板</h2>
+      <h3>7.1 下载 D2</h3>
+      <pre>conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/download_d3_region_formal.py \
+  --center-ra 32.5 --center-dec 0.9 --radius-deg 1.5 \
+  --band D2 --output-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/data/formal/D2 \
+  --max-workers 8</pre>
+
+      <h3>7.2 下载 D3</h3>
+      <pre>conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/download_d3_region_formal.py \
+  --center-ra 32.5 --center-dec 0.9 --radius-deg 1.5 \
+  --band D3 --output-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/data/formal/D3 \
+  --max-workers 8</pre>
+
+      <h3>7.3 生成3x3中心像素WCS CSV</h3>
+      <pre>conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/pixel_to_wcs_3x3_centers.py \
+  --input-fits /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/data/formal/D3/2025W30_1B_0184_1.fits \
+  --output-csv /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/2025W30_1B_0184_1_pixel3_center_wcs.csv</pre>
+
+      <h3>7.4 SEP掩膜 D2/D3</h3>
+      <pre>conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/replace_hdu_sep_mask.py \
+  --input-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/data/formal/D2 \
+  --output-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/output/replaced_image/D2 \
+  --sigma 3
+
+conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/replace_hdu_sep_mask.py \
+  --input-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/data/formal/D3 \
+  --output-dir /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/output/replaced_image/D3 \
+  --sigma 3</pre>
+
+      <h3>7.5 背景流量提取（8核）</h3>
+      <pre>conda run -n spxquery python /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/code/extract_d3_spectra_spxquery.py \
+  --fits-dirs /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/output/replaced_image/D2 \
+              /data1/longlin/workspace/spherex_halpha_overdensity/ha_cube/output/replaced_image/D3 \
+  --allowed-detectors 2,3 \
+  --output /data1/longlin/workspace/spherex_halpha_overdensity/OIII_cube/result/spectra_all_D2D3.csv \
+  --output-dir /data1/longlin/workspace/spherex_halpha_overdensity/OIII_cube/result/spectra \
+  --workers 8 --aperture-method fixed --aperture-diameter 3 \
+  --background-method annulus --min-bg-pixels 30</pre>
+    </div>
+
+    <div class="card" id="outputs">
+      <h2>8. 输出产物说明</h2>
+      <table>
+        <thead>
+          <tr><th>产物</th><th>位置</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>区域下载元数据</td>
+            <td>region_query_metadata.json</td>
+            <td>记录查询时间、天区参数、obs_id 列表、cutout参数</td>
+          </tr>
+          <tr>
+            <td>3x3坐标CSV</td>
+            <td>ha_cube/code/*_pixel3_center_wcs.csv</td>
+            <td>后续提取所需的规则采样坐标</td>
+          </tr>
+          <tr>
+            <td>掩膜后FITS</td>
+            <td>ha_cube/output/replaced_image/D2, D3</td>
+            <td>源像元NaN化，保留背景场</td>
+          </tr>
+          <tr>
+            <td>每源光谱CSV</td>
+            <td>OIII_cube/result/spectra</td>
+            <td>包含背景孔径流量与两种误差以及 aperture_sum_snr</td>
+          </tr>
+          <tr>
+            <td>合并CSV</td>
+            <td>OIII_cube/result/spectra_all_D2D3.csv</td>
+            <td>全源汇总长表，便于全局分析</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted">文档生成时间: 2026-04-19</p>
+    </div>
+  </div>
+</body>
+</html>
